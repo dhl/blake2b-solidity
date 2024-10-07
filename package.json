@@ -1,0 +1,22 @@
+{
+  "name": "blake2b-solidity",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx hardhat test",
+    "coverage": "npx hardhat coverage"
+  },
+  "keywords": [
+    "blake2b",
+    "solidity"
+  ],
+  "author": "David Leung",
+  "license": "MIT",
+  "description": "A Solidity implementation of the BLAKE2b hash function.",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.12",
+    "prettier": "^3.3.3",
+    "prettier-plugin-solidity": "^1.4.1"
+  }
+}
