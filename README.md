@@ -1,5 +1,7 @@
 # blake2b-solidity
 
+[![codecov](https://codecov.io/github/dhl/blake2b-solidity/graph/badge.svg?token=4WOC5GEC7H)](https://codecov.io/github/dhl/blake2b-solidity)
+
 `blake2b-solidity` is a high-performance Solidity implementation of the [BLAKE2b](https://www.blake2.net/) hash
 function.
 
