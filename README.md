@@ -82,7 +82,8 @@ to [Tjaden Hess](https://github.com/tjade273), [Matt Luongo](https://github.com/
 and [James Hancock](https://github.com/MadeOfTin) for their contributions to EIP-152 and the initial reference
 implementation of the BLAKE2b F compression function in [go-ethereum](https://github.com/ethereum/go-ethereum).
 
-We would also like to thank the [Emil Bay](@emilbayes) for making his work on Blake2b test vectors available.
+We would also like to thank the [Emil Bay](https://github.com/emilbayes/) for making his work on Blake2b test vectors
+available.
 
 ## References
 
