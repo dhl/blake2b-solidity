@@ -1,10 +1,10 @@
-name: Run tests and upload coverage
+name: Tests and Coverage
 
 on:
   push
 
 jobs:
-  coverage:
+  test:
     name: Report coverage
     runs-on: ubuntu-latest
     steps:
