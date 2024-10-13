@@ -61,7 +61,7 @@ describe("BLAKE2b", function () {
       it(`input=${input} key=${key}`, async function () {
         const result = await blake2b.hash(`0x${input}`, `0x${key}`, `0x${salt}`, `0x${personal}`, outlen);
 
-        // For gas benchmarking. We only want to test with basic vectors.
+        // For gas benchmarking. We only want to test with basic vectors to exclude BLAKE2b only extensions.
         if (key === "") {
           await blake2b.callHash(`0x${input}`, `0x${key}`, `0x${salt}`, `0x${personal}`, outlen);
           await blake2b.callRipemd160(`0x${input}`);

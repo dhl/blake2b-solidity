@@ -18,24 +18,25 @@ function.
 
 ## Motivation
 
-Our contribution is to provide the most efficient and feature-complete BLAKE2b implementation for the Ethereum Virtual
-Machine (EVM) to support interoperability with other cryptographic and Proof-of-Work (PoW) algorithms verification.
+The primary goal of this project is to provide the most efficient and feature-complete BLAKE2b implementation for the
+Ethereum Virtual Machine (EVM) to support interoperability with other cryptographic applications and Proof-of-Work (PoW)
+algorithms.
 
-BLAKE2b is known for its speed, security, and simplicity. Notable applications of BLAKE2b in blockchain include:
+BLAKE2b is renowned for its speed, security, and simplicity. Notable applications of BLAKE2b in blockchain include:
 
 * [Zcash](https://z.cash): A privacy-focused blockchain that uses BLAKE2b for its Equihash proof-of-work algorithm.
 * [IPFS](https://ipfs.tech): A decentralized file storage system that uses BLAKE2b for content addressing.
 
-Unfortunately, the lack of full native support for BLAKE2b in the Ethereum Virtual Machine (EVM) makes it challenging
-for application developers to validate and interoperate with those applications within Solidity smart contracts. As a
-result, developers are forced to perform off-chain services, which can introduce security vulnerabilities and increase
-the attack surface for the application.
+The lack of full native support for BLAKE2b in the Ethereum Virtual Machine (EVM) poses challenges for application
+developers to validate and interoperate with these applications within Solidity smart contracts. Consequently,
+developers are often forced to either adopt another hashing algorithm such as keccak-256 or sha256, both of which enjoy
+native support in EVM, or trust validation performed by some trusted operator.
 
 Efforts such as [EIP-152](https://eips.ethereum.org/EIPS/eip-152)
-and [Project Alchemy](https://github.com/Consensys/Project-Alchemy/tree/master/contracts/BLAKE2b) by Consensys, have
-attempted to provide a BLAKE2/BLAKE2b implementation. In the case of EIP-152, only a precompiled F compress function
-is provided instead of the full hash function, and Project Alchemy, which started before EIP-152, could not take
-advantage of the precompile functions, did not work under certain edge conditions, and is unmaintained.
+and [Project Alchemy](https://github.com/Consensys/Project-Alchemy/tree/master/contracts/BLAKE2b) by Consensys have
+attempted to provide a BLAKE2/BLAKE2b implementation. However, EIP-152 only provides a precompiled F compress function
+instead of the full hash function, and Project Alchemy, which started before EIP-152, could not take advantage of the
+precompile compress function, did not pass all reference implementation test vectors, and is no longer unmaintained.
 
 `blake2b-solidity` aims to address these limitations by providing a high-performance, gas-efficient, and
 feature-complete BLAKE2b implementation in Solidity, enabling developers to leverage the benefits of BLAKE2b directly
@@ -43,8 +44,8 @@ within Ethereum smart contracts.
 
 ## Features
 
-1. Most gas-efficient open-source BLAKE2b implementation in Solidity.
-2. Full support for variable input.
+1. Gas-efficient ⛽️ (See [Gas Usage](#gas-usage)).
+2. Full support for variable input (tested to accept ~750KB of data given block gas limit of 30 million).
 3. Full support for variable digest output size (1 up to 64 bytes).
 4. Supports salting.
 5. Supports personalized hashes.
@@ -60,11 +61,11 @@ were excluded in our benchmark.
 
 | Hash Function          | Implementation        | Average Gas Cost | Digest Size (bits) | Relative Gas Cost (%) |
 |------------------------|-----------------------|------------------|--------------------|-----------------------|
-| Blake2b (Consensys)    | Solidity              | 255,427          | 512                | 1042%                 |
-| Blake2b (this project) | Solidity + Precompile | 31,974           | 512                | 130%                  |
-| ripemd160              | Native                | 26,202           | 160                | 107%                  |
-| sha256                 | Native                | 25,318           | 256                | 103%                  |
-| keccak256              | Native                | 24,512           | 256                | 100%                  |
+| Blake2b (Consensys)    | Solidity              | 255,427          | 512                | 1047%                 |
+| Blake2b (this project) | Solidity + Precompile | 28,618           | 512                | 117%                  |
+| ripemd160              | Native                | 25,719           | 160                | 105%                  |
+| sha256                 | Native                | 24,834           | 256                | 102%                  |
+| keccak256              | Native                | 24,400           | 256                | 100%                  |
 
 ## Testing
 
@@ -82,7 +83,7 @@ to [Tjaden Hess](https://github.com/tjade273), [Matt Luongo](https://github.com/
 and [James Hancock](https://github.com/MadeOfTin) for their contributions to EIP-152 and the initial reference
 implementation of the BLAKE2b F compression function in [go-ethereum](https://github.com/ethereum/go-ethereum).
 
-We would also like to thank the [Emil Bay](https://github.com/emilbayes/) for making his work on Blake2b test vectors
+We would also like to thank [Emil Bay](https://github.com/emilbayes) for making his work on BLAKE2b test vectors
 available.
 
 ## References

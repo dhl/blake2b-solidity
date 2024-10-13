@@ -9,6 +9,7 @@ const config: HardhatUserConfig = {
         enabled: true,
         runs: 2_000_000,
       },
+      evmVersion: `cancun`,
     },
   },
 };
