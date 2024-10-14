@@ -16,6 +16,7 @@ contract BLAKE2bTest {
         return BLAKE2b.hash(input, key, salt, personalization, outlen);
     }
 
+    // solc-disable-next-line
     function callHash(
         bytes memory input,
         bytes memory key,
@@ -26,14 +27,17 @@ contract BLAKE2bTest {
         return BLAKE2b.hash(input, key, salt, personalization, outlen);
     }
 
+    // solc-disable-next-line
     function callRipemd160(bytes memory input) public returns (bytes memory) {
         return abi.encodePacked(ripemd160(input));
     }
 
+    // solc-disable-next-line
     function callSha256(bytes memory input) public returns (bytes memory) {
         return abi.encodePacked(sha256(input));
     }
 
+    // solc-disable-next-line
     function callKeccak256(bytes memory input) public returns (bytes memory) {
         return abi.encodePacked(keccak256(input));
     }

@@ -12,6 +12,7 @@ function.
 - [Features](#features)
 - [Gas Usage](#gas-usage)
 - [Testing](#testing)
+- [Caveats](#caveats)
 - [Acknowledgements](#acknowledgements)
 - [References](#references)
 - [License](#license)
@@ -36,7 +37,7 @@ Efforts such as [EIP-152](https://eips.ethereum.org/EIPS/eip-152)
 and [Project Alchemy](https://github.com/Consensys/Project-Alchemy/tree/master/contracts/BLAKE2b) by Consensys have
 attempted to provide a BLAKE2/BLAKE2b implementation. However, EIP-152 only provides a precompiled F compress function
 instead of the full hash function, and Project Alchemy, which started before EIP-152, could not take advantage of the
-precompile compress function, did not pass all reference implementation test vectors, and is no longer unmaintained.
+precompile compress function, did not pass all reference implementation test vectors, and is no longer maintained.
 
 `blake2b-solidity` aims to address these limitations by providing a high-performance, gas-efficient, and
 feature-complete BLAKE2b implementation in Solidity, enabling developers to leverage the benefits of BLAKE2b directly
@@ -44,12 +45,12 @@ within Ethereum smart contracts.
 
 ## Features
 
-1. Gas-efficient ⛽️ (See [Gas Usage](#gas-usage)).
-2. Full support for variable input (tested to accept ~750KB of data given block gas limit of 30 million).
-3. Full support for variable digest output size (1 up to 64 bytes).
-4. Supports salting.
-5. Supports personalized hashes.
-6. Zero external dependency.
+1. **Gas-efficient** ⛽️ (See [Gas Usage](#gas-usage)).
+2. **Variable Input Support**: Accepts up to a theoretical maximum of 16 exbibytes ($2^{64}$ bytes,
+   see [Caveats](#caveats)).
+4. **Salting**: Supports salting for added security.
+5. **Personalized Hashes**: Supports personalized hashes.
+6. **Zero External Dependency**: No external Solidity dependency. Only the EIP-152 precompiled contract is used.
 
 ## Gas Usage
 
@@ -62,10 +63,18 @@ were excluded in our benchmark.
 | Hash Function          | Implementation        | Average Gas Cost | Digest Size (bits) | Relative Gas Cost (%) |
 |------------------------|-----------------------|------------------|--------------------|-----------------------|
 | Blake2b (Consensys)    | Solidity              | 255,427          | 512                | 1047%                 |
-| Blake2b (this project) | Solidity + Precompile | 28,618           | 512                | 117%                  |
+| Blake2b (this project) | Solidity + Precompile | 27,853           | 512                | 114%                  |
 | ripemd160              | Native                | 25,719           | 160                | 105%                  |
 | sha256                 | Native                | 24,834           | 256                | 102%                  |
 | keccak256              | Native                | 24,400           | 256                | 100%                  |
+
+## Caveats
+
+1. Input size above 1 MiB ($2^{20}$ bytes) will likely fail due to block gas limit constraints (30 million gas at time
+   of writing).
+2. Only the lower 64-bit of the `t` counter is implemented to save gas. This restricts the maximum supported input size
+   to $2^{64}$ bytes. The maximum allowed input size for BLAKE2b is $2^{128}$ bytes. Given the input size constraint
+   above, this is not going to be an issue.
 
 ## Testing
 

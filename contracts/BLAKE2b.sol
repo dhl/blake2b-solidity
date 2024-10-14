@@ -6,13 +6,9 @@ pragma solidity 0.8.27;
 error OutputLengthCannotBeZero();
 error OutputLengthExceeded();
 error KeyLengthExceeded();
+error InputLengthExceeded();
 
 library BLAKE2b {
-    struct Context {
-        uint128 t; // processed bytes counter
-        uint128 c; // message block buffer counter
-    }
-
     // Initial state vectors
     //
     // IV 0-3 as numerical values
@@ -31,18 +27,20 @@ library BLAKE2b {
     bytes32 private constant IS0 = bytes32(hex"08c9bdf267e6096a3ba7ca8485ae67bb2bf894fe72f36e3cf1361d5f3af54fa5");
     bytes32 private constant IS1 = bytes32(hex"d182e6ad7f520e511f6c3e2b8c68059b6bbd41fbabd9831f79217e1319cde05b");
 
+    uint256 private constant BLOCK_SIZE = 128;
+
     function hash(
         bytes memory input,
         bytes memory key,
         bytes memory salt,
         bytes memory personalization,
-        uint256 outlen
-    ) internal view returns (bytes memory out) {
-        if (outlen == 0) {
+        uint256 digestLen
+    ) internal view returns (bytes memory digest) {
+        if (digestLen == 0) {
             revert OutputLengthCannotBeZero();
         }
 
-        if (outlen > 64) {
+        if (digestLen > 64) {
             revert OutputLengthExceeded();
         }
 
@@ -50,25 +48,14 @@ library BLAKE2b {
             revert KeyLengthExceeded();
         }
 
-        Context memory ctx;
-        out = new bytes(outlen);
+        ////////////////////////////////////////////
+        // INIT
+        ////////////////////////////////////////////
 
-        bytes memory state = init(ctx, outlen, key, salt, personalization);
-        update(ctx, state, input);
+        // See https://eips.ethereum.org/EIPS/eip-152#specification
+        bytes memory state = new bytes(213);
 
-        finalize(ctx, state, out, outlen);
-    }
-
-    function init(
-        Context memory ctx,
-        uint256 outlen,
-        bytes memory key,
-        bytes memory salt,
-        bytes memory person
-    ) internal view returns (bytes memory state) {
-        // Initialize state by XORing initial state vectors with parameter block.
-        // Note the parameter block is broken up into different if statements to save gas.
-        bytes32[2] memory h = [IS0 ^ bytes32(outlen << 248), IS1];
+        bytes32[2] memory h = [IS0 ^ bytes32(digestLen << 248), IS1];
 
         if (key.length > 0) {
             h[0] ^= bytes32(key.length << 240);
@@ -78,77 +65,82 @@ library BLAKE2b {
             h[1] ^= bytes32(salt);
         }
 
-        if (person.length > 0) {
-            h[1] ^= bytes32(person) >> 128;
+        if (personalization.length > 0) {
+            h[1] ^= bytes32(personalization) >> 128;
         }
 
-        // Copy state into the state buffer, encoded to the specification of EIP-152
-        state = new bytes(213);
         assembly {
             mstore8(add(state, 35), 12)
             mcopy(add(state, 36), h, 64)
         }
 
+        uint256 blockLen = 0;
+        uint256 buffLen = 0;
+
         if (key.length > 0) {
-            update(ctx, state, key);
-            ctx.c = 128;
+            assembly {
+                let keyLen := mload(key)
+                mcopy(add(state, 100), add(key, 32), keyLen)
+            }
+            buffLen = BLOCK_SIZE;
         }
-    }
 
-    function update(Context memory ctx, bytes memory state, bytes memory input) internal view {
-        uint128 t = ctx.t;
-        uint128 c = ctx.c;
-        uint256 inputOffset = 0;
-        uint256 inputLength = input.length;
+        ////////////////////////////////////////////
+        // UPDATE
+        ////////////////////////////////////////////
 
-        // Read input in 128-byte chunks
-        while (inputOffset + 128 <= inputLength) {
+        uint256 readInputOffset = 0;
+
+        // Read full block chunks
+        while (readInputOffset + BLOCK_SIZE <= input.length) {
             // If the buffer is full, process it
-            if (c == 128) {
+            if (buffLen == BLOCK_SIZE) {
                 unchecked {
-                    t += 128;
+                    blockLen += BLOCK_SIZE;
                 }
 
-                bytes8[2] memory tt = [bytes8(reverseByteOrder(uint64(t))), bytes8(reverseByteOrder(uint64(t >> 64)))];
+                bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(blockLen)))];
 
                 assembly {
-                    mcopy(add(state, 228), tt, 16)
+                    mcopy(add(state, 228), tt, 8)
                     if iszero(staticcall(not(0), 0x09, add(state, 32), 0xd5, add(state, 36), 0x40)) {
                         revert(0, 0)
                     }
                 }
 
-                c = 0;
+                buffLen = 0;
             }
 
             assembly {
-                mcopy(add(add(state, 100), c), add(input, add(32, inputOffset)), 128)
+                mcopy(add(add(state, 100), buffLen), add(input, add(32, readInputOffset)), BLOCK_SIZE)
             }
 
             unchecked {
-                c = 128;
-                inputOffset += 128;
+                buffLen = BLOCK_SIZE;
+                readInputOffset += BLOCK_SIZE;
             }
         }
 
-        // Handle sub-128-byte chunk
-        if (inputOffset < inputLength) {
+        // Handle partial block
+        if (readInputOffset < input.length) {
             // If the buffer is full, process it
-            if (c == 128) {
+            if (buffLen == BLOCK_SIZE) {
                 unchecked {
-                    t += 128;
+                    blockLen += BLOCK_SIZE;
                 }
 
-                bytes8[2] memory tt = [bytes8(reverseByteOrder(uint64(t))), bytes8(reverseByteOrder(uint64(t >> 64)))];
+                bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(blockLen)))];
 
                 assembly {
-                    mcopy(add(state, 228), tt, 16)
+                    mcopy(add(state, 228), tt, 8)
                     if iszero(staticcall(not(0), 0x09, add(state, 32), 0xd5, add(state, 36), 0x40)) {
                         revert(0, 0)
                     }
                 }
 
-                c = 0;
+                buffLen = 0;
+
+                // Reset the message buffer, as we are going to process a partial block
                 assembly {
                     mstore(add(state, 100), 0)
                     mstore(add(state, 132), 0)
@@ -157,40 +149,39 @@ library BLAKE2b {
                 }
             }
 
-            // Safe casting, because left is always less than 128
-            uint128 left = uint128(inputLength - inputOffset);
-
             assembly {
-                mcopy(add(add(state, 100), c), add(input, add(32, inputOffset)), left)
-            }
-
-            unchecked {
-                c += left;
+                // left = input.length - inputOffset. Safe casting, because left is always less than 128
+                let left := sub(mload(input), readInputOffset)
+                mcopy(add(add(state, 100), buffLen), add(input, add(32, readInputOffset)), left)
+                buffLen := add(buffLen, left)
             }
         }
 
-        ctx.t = t;
-        ctx.c = c;
-    }
+        ////////////////////////////////////////////
+        // FINAL
+        ////////////////////////////////////////////
 
-    function finalize(Context memory ctx, bytes memory state, bytes memory out, uint256 outlen) internal view {
-        uint128 t = ctx.t;
         unchecked {
-            t += ctx.c;
+            blockLen += buffLen;
         }
 
-        assembly {
-            mstore8(add(state, 244), true)
-        }
-
-        bytes8[2] memory tt = [bytes8(reverseByteOrder(uint64(t))), bytes8(reverseByteOrder(uint64(t >> 64)))];
+        bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(blockLen)))];
 
         assembly {
-            mcopy(add(state, 228), tt, 16)
+            // Set final block flag
+            mstore8(add(state, 244), 1)
+            mcopy(add(state, 228), tt, 8)
             if iszero(staticcall(not(0), 0x09, add(state, 32), 0xd5, add(state, 36), 0x40)) {
                 revert(0, 0)
             }
-            mcopy(add(out, 32), add(state, 36), outlen)
+
+            // digest = new bytes(digestLen)
+            digest := mload(0x40)
+            mstore(0x40, add(digest, add(digestLen, 0x20)))
+            mstore(digest, digestLen)
+
+            // copy final hash state to digest
+            mcopy(add(digest, 32), add(state, 36), digestLen)
         }
     }
 
