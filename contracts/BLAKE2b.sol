@@ -27,7 +27,7 @@ library BLAKE2b {
     bytes32 private constant IS0 = bytes32(hex"08c9bdf267e6096a3ba7ca8485ae67bb2bf894fe72f36e3cf1361d5f3af54fa5");
     bytes32 private constant IS1 = bytes32(hex"d182e6ad7f520e511f6c3e2b8c68059b6bbd41fbabd9831f79217e1319cde05b");
 
-    uint256 private constant BLOCK_SIZE = 128;
+    uint256 private constant BLOCK_SIZE_BYTES = 128;
 
     function hash(
         bytes memory input,
@@ -49,11 +49,12 @@ library BLAKE2b {
         }
 
         ////////////////////////////////////////////
-        // INIT
+        // INITIALIZATION
         ////////////////////////////////////////////
 
         // See https://eips.ethereum.org/EIPS/eip-152#specification
-        bytes memory state = new bytes(213);
+        // We refer to the collective inputs to the F function as the context.
+        bytes memory context = new bytes(213);
 
         bytes32[2] memory h = [IS0 ^ bytes32(digestLen << 248), IS1];
 
@@ -70,90 +71,94 @@ library BLAKE2b {
         }
 
         assembly {
-            mstore8(add(state, 35), 12)
-            mcopy(add(state, 36), h, 64)
+            // Set the round count (12 for BLAKE2b) in the context
+            mstore8(add(context, 35), 12)
+            // Copy the initial hash state to the context
+            mcopy(add(context, 36), h, 64)
         }
 
-        uint256 blockLen = 0;
-        uint256 buffLen = 0;
+        uint256 bytesProcessed = 0;
+        uint256 bufferUsed = 0;
 
+        // If key is present, copy it to the context, and compress it as a full block
         if (key.length > 0) {
             assembly {
-                let keyLen := mload(key)
-                mcopy(add(state, 100), add(key, 32), keyLen)
+                // key length := mload(key)
+                // pointer to key := add(key, 32)
+                // pointer to state := add(context, 100)
+                mcopy(add(context, 100), add(key, 32), mload(key))
             }
-            buffLen = BLOCK_SIZE;
+
+            bufferUsed = BLOCK_SIZE_BYTES;
         }
 
         ////////////////////////////////////////////
-        // UPDATE
+        // INPUT PROCESSING
         ////////////////////////////////////////////
 
         uint256 readInputOffset = 0;
 
         // Read full block chunks
-        while (readInputOffset + BLOCK_SIZE <= input.length) {
-            // If the buffer is full, process it
-            if (buffLen == BLOCK_SIZE) {
+        while (readInputOffset + BLOCK_SIZE_BYTES <= input.length) {
+            if (bufferUsed == BLOCK_SIZE_BYTES) {
                 unchecked {
-                    blockLen += BLOCK_SIZE;
+                    bytesProcessed += BLOCK_SIZE_BYTES;
                 }
 
-                bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(blockLen)))];
+                bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(bytesProcessed)))];
 
                 assembly {
-                    mcopy(add(state, 228), tt, 8)
-                    if iszero(staticcall(not(0), 0x09, add(state, 32), 0xd5, add(state, 36), 0x40)) {
+                    mcopy(add(context, 228), tt, 8)
+                    if iszero(staticcall(not(0), 0x09, add(context, 32), 0xd5, add(context, 36), 0x40)) {
                         revert(0, 0)
                     }
                 }
 
-                buffLen = 0;
+                bufferUsed = 0;
             }
 
             assembly {
-                mcopy(add(add(state, 100), buffLen), add(input, add(32, readInputOffset)), BLOCK_SIZE)
+                mcopy(add(add(context, 100), bufferUsed), add(input, add(32, readInputOffset)), BLOCK_SIZE_BYTES)
             }
 
             unchecked {
-                buffLen = BLOCK_SIZE;
-                readInputOffset += BLOCK_SIZE;
+                bufferUsed = BLOCK_SIZE_BYTES;
+                readInputOffset += BLOCK_SIZE_BYTES;
             }
         }
 
         // Handle partial block
         if (readInputOffset < input.length) {
-            // If the buffer is full, process it
-            if (buffLen == BLOCK_SIZE) {
+            if (bufferUsed == BLOCK_SIZE_BYTES) {
                 unchecked {
-                    blockLen += BLOCK_SIZE;
+                    bytesProcessed += BLOCK_SIZE_BYTES;
                 }
 
-                bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(blockLen)))];
+                bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(bytesProcessed)))];
 
                 assembly {
-                    mcopy(add(state, 228), tt, 8)
-                    if iszero(staticcall(not(0), 0x09, add(state, 32), 0xd5, add(state, 36), 0x40)) {
+                    mcopy(add(context, 228), tt, 8)
+                    if iszero(staticcall(not(0), 0x09, add(context, 32), 0xd5, add(context, 36), 0x40)) {
                         revert(0, 0)
                     }
                 }
 
-                buffLen = 0;
+                bufferUsed = 0;
 
                 // Reset the message buffer, as we are going to process a partial block
                 assembly {
-                    mstore(add(state, 100), 0)
-                    mstore(add(state, 132), 0)
-                    mstore(add(state, 164), 0)
-                    mstore(add(state, 196), 0)
+                    mstore(add(context, 100), 0)
+                    mstore(add(context, 132), 0)
+                    mstore(add(context, 164), 0)
+                    mstore(add(context, 196), 0)
                 }
             }
 
             assembly {
                 // left = input.length - inputOffset. Safe casting, because left is always less than 128
                 let left := sub(mload(input), readInputOffset)
-                mcopy(add(add(state, 100), buffLen), add(input, add(32, readInputOffset)), left)
-                buffLen := add(buffLen, left)
+                mcopy(add(add(context, 100), bufferUsed), add(input, add(32, readInputOffset)), left)
+                bufferUsed := add(bufferUsed, left)
             }
         }
 
@@ -162,16 +167,16 @@ library BLAKE2b {
         ////////////////////////////////////////////
 
         unchecked {
-            blockLen += buffLen;
+            bytesProcessed += bufferUsed;
         }
 
-        bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(blockLen)))];
+        bytes8[1] memory tt = [bytes8(reverseByteOrder(uint64(bytesProcessed)))];
 
         assembly {
             // Set final block flag
-            mstore8(add(state, 244), 1)
-            mcopy(add(state, 228), tt, 8)
-            if iszero(staticcall(not(0), 0x09, add(state, 32), 0xd5, add(state, 36), 0x40)) {
+            mstore8(add(context, 244), 1)
+            mcopy(add(context, 228), tt, 8)
+            if iszero(staticcall(not(0), 0x09, add(context, 32), 0xd5, add(context, 36), 0x40)) {
                 revert(0, 0)
             }
 
@@ -181,7 +186,7 @@ library BLAKE2b {
             mstore(digest, digestLen)
 
             // copy final hash state to digest
-            mcopy(add(digest, 32), add(state, 36), digestLen)
+            mcopy(add(digest, 32), add(context, 36), digestLen)
         }
     }
 
